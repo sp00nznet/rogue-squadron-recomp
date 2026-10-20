@@ -41,7 +41,11 @@ static DWORD g_t0;
 static struct { int dik; DWORD on, off; } g_keys[MAX_KEYS];
 static int g_nkeys;
 
+static int mouse_arg(int argc, char** argv, int i);
+
 int input_arg(int argc, char** argv, int i) {
+    int n = mouse_arg(argc, argv, i);
+    if (n) return n;
     if (strcmp(argv[i], "--key") || i + 1 >= argc || g_nkeys == MAX_KEYS) return 0;
     const char* s = argv[i + 1];
     const char* at = strchr(s, '@');
@@ -53,6 +57,49 @@ int input_arg(int argc, char** argv, int i) {
     g_keys[g_nkeys].on = (DWORD)(t * 1000), g_keys[g_nkeys].off = (DWORD)((t + d) * 1000);
     g_nkeys++;
     return 2;
+}
+
+/* --mouse X,Y@T: the cursor to X,Y (640x480) at T, as two moves on the next
+ * reads: far up-left into the corner, then X,Y from it. --click B@T[+D]
+ * holds button B (0 left, 1 right). */
+#define MAX_MOUSE 64
+static struct { int x, y; DWORD at; int stage; } g_moves[MAX_MOUSE];
+static struct { int b; DWORD on, off; } g_clicks[MAX_MOUSE];
+static int g_nmoves, g_nclicks;
+
+static int mouse_arg(int argc, char** argv, int i) {
+    if (i + 1 >= argc) return 0;
+    const char* s = argv[i + 1];
+    const char* at = strchr(s, '@');
+    if (!at) return 0;
+    if (!strcmp(argv[i], "--mouse") && g_nmoves < MAX_MOUSE && strchr(s, ',')) {
+        g_moves[g_nmoves].x = atoi(s), g_moves[g_nmoves].y = atoi(strchr(s, ',') + 1);
+        g_moves[g_nmoves++].at = (DWORD)(atof(at + 1) * 1000);
+        return 2;
+    }
+    if (!strcmp(argv[i], "--click") && g_nclicks < MAX_MOUSE) {
+        const char* plus = strchr(at, '+');
+        double t = atof(at + 1), d = plus ? atof(plus + 1) : 0.15;
+        g_clicks[g_nclicks].b = atoi(s) & 3;
+        g_clicks[g_nclicks].on = (DWORD)(t * 1000), g_clicks[g_nclicks++].off = (DWORD)((t + d) * 1000);
+        return 2;
+    }
+    return 0;
+}
+
+/* DIMOUSESTATE: lX, lY, lZ, then a byte per button. */
+static void mouse_scripted(uint8_t* st, DWORD size) {
+    DWORD now = GetTickCount() - g_t0;
+    LONG* axis = (LONG*)st;
+    if (size < 16) return;
+    for (int k = 0; k < g_nmoves; k++) {
+        if (now < g_moves[k].at || g_moves[k].stage == 2) continue;
+        if (g_moves[k].stage++ == 0) axis[0] += -4000, axis[1] += -4000;
+        else axis[0] += g_moves[k].x, axis[1] += g_moves[k].y;
+        break;                              /* one step per read */
+    }
+    for (int k = 0; k < g_nclicks; k++)
+        if (now >= g_clicks[k].on && now < g_clicks[k].off) st[12 + g_clicks[k].b] = 0x80;
 }
 
 static void scripted(uint8_t held[256]) {
@@ -131,6 +178,7 @@ static HRESULT WINAPI dev_GetDeviceState(void* self, DWORD size, void* buf) {
         if (FAILED(hr)) memset(buf, 0, size);
         hr = DI_OK_;
     }
+    if (dev_kind(self) == DEV_MOUSE) mouse_scripted((uint8_t*)buf, size);
     if (dev_kind(self) == DEV_KEYBOARD && size >= 256 && g_nkeys) {
         uint8_t held[256];
         scripted(held);

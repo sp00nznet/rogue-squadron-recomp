@@ -89,3 +89,17 @@ title screen and the pilot roster come up.
 
 `--original` (the shipping machine code under the same host) stalled at the
 same place, which said it was the environment and not the lift.
+
+## 5. Into a mission
+
+With the registry read, nothing else stood in the way. A scripted run clicks
+Start on the pilot roster (`--mouse 568,107@54 --click 0@56`) and presses Enter
+through Select Level and Select Your Craft; the launch cutscene, the briefing
+and the flight over Nonnah follow, with the radar and the HUD:
+
+```
+build-farm\rogue.exe --run --headless --mute --mouse 568,107@54 --click 0@56 ^
+    --key 0x1C@66 --key 0x1C@80 --key 0x1C@95 --record r.mp4 --watchdog 160
+```
+
+`docs/screenshots/` has stills from that run.
