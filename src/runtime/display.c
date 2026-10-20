@@ -29,6 +29,7 @@
 
 #include "native32.h"
 #include "display.h"
+#include "menu.h"
 
 #define ARG(n) MEM32(g_esp + 4 + 4 * (n))
 #define DDSCAPS_EXECUTEBUFFER 0x00800000u   /* Direct3D's; DDSCAPS_RESERVED2 in today's ddraw.h */
@@ -191,13 +192,42 @@ static void blit_window(void) {
     ReleaseDC(g_hwnd, dc);
 }
 
+/* Borderless: the window covers its monitor. A window: the game's mode,
+ * scaled to fit 90% of the work area, centred. The picture keeps its aspect
+ * either way (blit_window). */
+void display_place(void) {
+    HWND h = g_hwnd;
+    MONITORINFO mi = { sizeof mi };
+    if (!h || g_headless) return;
+    GetMonitorInfoA(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mi);
+    if (g_set.window == 0) {
+        RECT r = mi.rcMonitor;
+        SetWindowLongA(h, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+        SetWindowPos(h, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    } else {
+        RECT wa = mi.rcWork;
+        int aw = (wa.right - wa.left) * 9 / 10, ah = (wa.bottom - wa.top) * 9 / 10;
+        int w = (int)g_mode_w, hh = (int)g_mode_h;
+        double k = (double)aw / w < (double)ah / hh ? (double)aw / w : (double)ah / hh;
+        w = (int)(w * k), hh = (int)(hh * k);
+        RECT r = { 0, 0, w, hh };
+        DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+        AdjustWindowRect(&r, style, FALSE);
+        SetWindowLongA(h, GWL_STYLE, style);
+        SetWindowPos(h, HWND_NOTOPMOST, wa.left + ((wa.right - wa.left) - (r.right - r.left)) / 2,
+                     wa.top + ((wa.bottom - wa.top) - (r.bottom - r.top)) / 2, r.right - r.left, r.bottom - r.top,
+                     SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    }
+    fprintf(stderr, "[display] %s\n", g_set.window ? "a window" : "borderless fullscreen");
+}
+
 static void present(void* s, const char* why) {
     static const char* last_why;
     static long last_frame;
     static int busy;
     if (busy) return;
     busy = 1;
-    InterlockedIncrement(&g_frames);
+    if (InterlockedIncrement(&g_frames) == 1) display_place();
     if (g_log && (why != last_why || g_frames - last_frame > 2000)) {   /* each change of source */
         fprintf(stderr, "[present] frame %ld: %s\n", g_frames, why);
         last_why = why, last_frame = g_frames;
@@ -230,7 +260,8 @@ static HRESULT WINAPI dd_SetCooperativeLevel(void* self, HWND h, DWORD flags) {
 }
 
 static void mode_set(DWORD w, DWORD h, DWORD bpp) {
-    fprintf(stderr, "[ddraw] SetDisplayMode(%lux%lux%lu): kept, the screen is left alone\n", w, h, bpp);
+    fprintf(stderr, "[ddraw] SetDisplayMode(%lux%lux%lu) from sub_%08X: kept, the screen is left alone\n", w, h, bpp,
+            g_cur_func);
     g_mode_w = w, g_mode_h = h, g_mode_bpp = bpp;
 }
 static HRESULT WINAPI dd1_SetDisplayMode(void* self, DWORD w, DWORD h, DWORD bpp) {

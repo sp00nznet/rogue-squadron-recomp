@@ -23,6 +23,7 @@
 #include "recomp_trace.h"
 #include "display.h"
 #include "input.h"
+#include "menu.h"
 #include "oracle.h"
 #include "recomp_target.h"   /* the binary this build runs: run_lift.py */
 
@@ -238,7 +239,8 @@ static LRESULT CALLBACK hl_wndproc(HWND h, UINT m, WPARAM w, LPARAM l) {
     LRESULT r;
     for (int i = 0; i < g_nclasses; i++)
         if (g_classes[i].atom == atom) proc = g_classes[i].proc;
-    if (!g_headless) {
+    if (!g_headless) {                       /* a real window: the F10 menu's keys first (menu.c) */
+        if (menu_wndproc(h, m, w, l, &r)) return r;
     } else if (m == WM_ACTIVATEAPP || m == WM_NCACTIVATE) w = TRUE;
     else if (m == WM_ACTIVATE) w = MAKEWPARAM(WA_ACTIVE, HIWORD(w));
     else if (m == WM_KILLFOCUS) return 0;
@@ -469,6 +471,7 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         int n = recomp_trace_arg(argc, argv, i);
         if (!n) n = input_arg(argc, argv, i);
+        if (!n) n = menu_arg(argc, argv, i);
         if (n) { i += n - 1; continue; }
         if (!strcmp(argv[i], "--run")) run = 1;
         else if (!strcmp(argv[i], "--headless")) g_headless = 1;
@@ -525,6 +528,7 @@ int main(int argc, char** argv) {
     static native32_shim_t shims[sizeof g_headless_shims / sizeof g_headless_shims[0] +
                                  sizeof g_shims / sizeof g_shims[0]];
     int nshims = 0;
+    menu_init(g_headless);              /* rogue.ini: what the display and the cheats follow */
     if (!display_init(rdir, g_headless, rec, rec_frames) && g_headless) return 1;
     input_init(g_headless);
     if (g_headless) {

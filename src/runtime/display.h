@@ -11,3 +11,4 @@ void display_shim_DirectDrawCreate(void);      /* native32 shim for DDRAW!Direct
 long display_frames(void);
 void* display_hwnd(void);                      /* the game's window, once DirectDraw has it */
 void display_record_close(void);
+void display_place(void);                      /* the game window as the F10 menu says: borderless or a window */

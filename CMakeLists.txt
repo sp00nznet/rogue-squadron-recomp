@@ -35,7 +35,7 @@ if(NOT GEN_SOURCES)
   message(FATAL_ERROR "${GEN_DIR} is empty -- run `py -3 run_lift.py --all` first")
 endif()
 
-set(HOST_SOURCES src/runtime/host.c src/runtime/display.c src/runtime/input.c src/runtime/oracle.c)
+set(HOST_SOURCES src/runtime/host.c src/runtime/display.c src/runtime/input.c src/runtime/menu.c src/runtime/oracle.c)
 add_executable(rogue
   ${HOST_SOURCES}
   ${PCRECOMP}/runtime/native32/native32.c
