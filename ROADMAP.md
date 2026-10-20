@@ -10,10 +10,12 @@
   DirectDraw's enumeration), and the 3D projection is 4:3. The mode is set by
   `sub_00588070` → `sub_0056EDD0` → `sub_0057BBF0` from a mode record; the
   front end draws 640x480 2D.
-- **Infinite lives, invincibility, level jumps.** Not passcodes in this
-  release, so they need the game's own state: a craft's hit points are at
-  +0xC0 of its object (`sub_0040BBC0`), the pilot's highest mission is byte
-  0x32 of its record, which lives on the heap.
+- **Invincibility.** Infinite lives and completing a mission are in the F10
+  menu; damage is not. A craft's hit points are at +0xC0 of its object
+  (`sub_0040BBC0`), so the place that subtracts damage is the way in.
+- **An intermittent fault at the pilot roster**: one run in four headless
+  ones died at 54 s, an indirect call through a null pointer from
+  `0x00597280` and then a fault in `sub_00569850`.
 - **Play through.** Only The Search for the Nonnah has flown.
 - **Sound.** Runs so far were muted; DirectSound and the music are untested.
 - **A conformance harness**: boot, roster, level select, a mission, counted

@@ -36,7 +36,7 @@ through the intro and the front end, and flies its missions.**
 | Front end: pilot roster, settings, level and craft select | runs |
 | Missions | The Search for the Nonnah flies: launch, briefing, flight, radar, TIEs |
 | Headless (`--headless --record`) | works |
-| F10 menu: cheats | Millennium Falcon, TIE Interceptor and bonus missions checked under `--cmd`; the popup itself not yet seen on a screen |
+| F10 menu: cheats | Millennium Falcon, TIE Interceptor, bonus missions, infinite lives and completing a mission checked under `--cmd`; the popup itself not yet seen on a screen |
 | Borderless window, F11 | written; not yet seen on a screen |
 | Gamepad | the game's own DirectInput joystick support; not tried with a real pad |
 | Resolution, widescreen | not yet (640x480, the game's default) |

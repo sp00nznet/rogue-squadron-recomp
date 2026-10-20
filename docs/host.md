@@ -69,7 +69,7 @@ rogue [--run] [--original] [--headless [--record out.mp4] [--frames N]] [--mute]
 | `--key DIK@T[+D]` | hold a DirectInput key code (scan code) from T seconds for D (0.2); both in DirectInput and as window messages, where the front end reads keys |
 | `--mouse X,Y@T` | the cursor to X,Y (640x480) at T |
 | `--click B@T[+D]` | mouse button B (0 left) held from T |
-| `--cmd NAME@T` | an F10 menu command: `falcon`, `tie`, `bonus`, `ace` |
+| `--cmd NAME@T` | an F10 menu command: `falcon`, `tie`, `bonus`, `ace`, `lives`, `win`, `abort` |
 | `--original` | the shipping machine code, natively, under the same shims |
 | `--watchdog S` | after S seconds: where it is, the last calls, then exit |
 | `--native-trace`, `--trace-from S` | every call into Windows, from the start or from S seconds |

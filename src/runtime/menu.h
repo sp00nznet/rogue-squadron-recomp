@@ -7,6 +7,7 @@
 typedef struct {
     int window;          /* 0 borderless fullscreen, 1 a window */
     uint32_t cheats;     /* passcode bits held on (bit n = the game's passcode n) */
+    int lives;           /* infinite lives */
 } rs_settings_t;
 extern rs_settings_t g_set;
 

@@ -9,6 +9,9 @@ are kept in `rogue.ini` beside `rogue.exe`; a headless run never writes it.
 | | TIE Interceptor | passcode `GOODGUYTIE` |
 | | All bonus missions | passcode `OOMPAWAMPA` |
 | | Ace mode | every craft starts at 40 hit points, not 75 |
+| | Infinite lives | the life count is put back to 3 whenever it drops |
+| | Complete this mission | ends the mission in flight as won: the game's MISSION COMPLETE, then the next mission |
+| | Abort this mission | ends it as aborted, back to level select; costs no life with infinite lives on |
 | Display | Fullscreen, borderless | the default; F11 or Alt+Enter switches |
 | | Window | the game's 640x480 scaled to 90% of the screen, aspect kept |
 
@@ -46,4 +49,25 @@ Bit 6 has no known code; it cuts every craft's hit points from 75 to 40 in
 the nine craft set-up functions (`sub_0040BBC0` and its siblings), the "ace"
 cheat. The other bits are left alone until what they do is known.
 
-`--cmd falcon@T`, `tie`, `bonus` and `ace` run the same toggles on a timeline.
+## Lives and ending a mission
+
+These come from a speedrunner's Cheat Engine table rather than a passcode
+(Thanaclara's restart script, posted by Natndo64 in the speedrun.com guide
+[PC menuing time save for ILs](https://www.speedrun.com/rogue1/guides/2w425)).
+It names static addresses in the Steam exe, and the lift agrees with them:
+
+| Address | What |
+|---|---|
+| `0x00704940` | lives, a signed byte; `0x0046D13C` (lost) and `0x0046D177` (aborted) take one |
+| `0x00704944` | mission result; the switch at `0x0046D010` (table `0x0046D228`) reads 0 aborted, 1 won, 2 lost |
+| `0x00704D28` | game mode: 0 in flight; writing 6 ends the mission with the result above |
+| `0x00704220` | the current mission; on a win it advances and `0x0070495F`, the highest reached, follows |
+
+Infinite lives tops the count up from the cheat thread instead of patching the
+decrement, since there is no machine code to patch in a static recompilation.
+Completing a mission this way records it with no time and no medal.
+
+`--cmd falcon@T`, `tie`, `bonus`, `ace`, `lives`, `win` and `abort` run the
+same commands on a timeline. Checked headless: `win` in The Search for the
+Nonnah gave MISSION COMPLETE and Enter launched Defection at Corellia; `abort`
+with `lives` on took the count to 2 and the menu put it back to 3.

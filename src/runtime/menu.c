@@ -22,6 +22,13 @@
 #include "menu.h"
 
 #define CHEAT_BITS 0x00704248u      /* u32: passcodes 0..31 entered */
+/* Mission state, from a speedrunner's Cheat Engine table (speedrun.com/rogue1,
+ * "PC menuing time save for ILs") and checked against the lift: a lost or
+ * aborted mission takes a life at 0x0046D13C / 0x0046D177, and the result
+ * switch at 0x0046D010 treats 1 as won (records it, unlocks the next). */
+#define LIVES       0x00704940u     /* s8 */
+#define RESULT      0x00704944u     /* u8: 0 aborted, 1 won, 2 lost, ... */
+#define GAME_MODE   0x00704D28u     /* u32: 6 ends the mission with RESULT */
 
 static const struct { int bit; const char* name; const char* code; } k_cheats[] = {
     { 2, "Millennium Falcon", "WOOKIEPELT" },
@@ -31,7 +38,7 @@ static const struct { int bit; const char* name; const char* code; } k_cheats[] 
 };
 #define NCHEATS (int)(sizeof k_cheats / sizeof k_cheats[0])
 
-rs_settings_t g_set = { 0, 0 };
+rs_settings_t g_set = { 0, 0, 0 };
 static int g_headless;
 static char g_ini[MAX_PATH];
 
@@ -43,11 +50,18 @@ static char g_ini[MAX_PATH];
 static volatile LONG g_clear;          /* bits to clear once */
 
 static DWORD WINAPI cheat_thread(LPVOID unused) {
+    uint32_t mode = ~0u;
     (void)unused;
     for (;;) {
         uint32_t clear = (uint32_t)InterlockedExchange(&g_clear, 0);
         uint32_t v = MEM32(CHEAT_BITS), want = (v & ~clear) | g_set.cheats;
         if (want != v) MEM32(CHEAT_BITS) = want;
+        /* ponytail: topped up, not frozen; a life lost between ticks is put back */
+        if (g_set.lives && (int8_t)MEM8(LIVES) < 3) {
+            fprintf(stderr, "[menu] lives %d, back to 3\n", (int8_t)MEM8(LIVES));
+            MEM8(LIVES) = 3;
+        }
+        if (MEM32(GAME_MODE) != mode) fprintf(stderr, "[menu] game mode %u\n", mode = MEM32(GAME_MODE));
         Sleep(100);
     }
 }
@@ -57,6 +71,15 @@ static void toggle_cheat(int i) {
     g_set.cheats ^= bit;
     if (!(g_set.cheats & bit)) InterlockedOr(&g_clear, (LONG)bit);
     fprintf(stderr, "[menu] %s %s\n", k_cheats[i].name, g_set.cheats & bit ? "on" : "off");
+}
+
+/* Ends the mission in flight as the game ends it (the Cheat Engine table's
+ * restart, with "won" in place of "lost"). */
+static void end_mission(int result) {
+    fprintf(stderr, "[menu] end mission, result %d (game mode %u, lives %d)\n", result, MEM32(GAME_MODE),
+            (int8_t)MEM8(LIVES));
+    MEM8(RESULT) = (uint8_t)result;
+    MEM32(GAME_MODE) = 6;
 }
 
 /* ---- settings (rogue.ini) -------------------------------------------------- */
@@ -70,6 +93,7 @@ static void menu_save(void) {
         _snprintf(b, sizeof b - 1, "passcode_%d", k_cheats[i].bit), b[sizeof b - 1] = 0;
         WritePrivateProfileStringA("cheats", b, g_set.cheats >> k_cheats[i].bit & 1 ? "1" : "0", g_ini);
     }
+    WritePrivateProfileStringA("cheats", "infinite_lives", g_set.lives ? "1" : "0", g_ini);
 }
 
 static void load(void) {
@@ -84,10 +108,11 @@ static void load(void) {
         _snprintf(b, sizeof b - 1, "passcode_%d", k_cheats[i].bit), b[sizeof b - 1] = 0;
         if (GetPrivateProfileIntA("cheats", b, 0, g_ini)) g_set.cheats |= 1u << k_cheats[i].bit;
     }
+    g_set.lives = GetPrivateProfileIntA("cheats", "infinite_lives", 0, g_ini) != 0;
 }
 
 /* ---- the popup ------------------------------------------------------------- */
-enum { ID_CHEAT = 100, ID_WINDOW = 200 };
+enum { ID_CHEAT = 100, ID_LIVES = 150, ID_WIN, ID_ABORT, ID_WINDOW = 200 };
 
 static void add(HMENU m, UINT id, const char* text, int checked, int enabled) {
     AppendMenuA(m, MF_STRING | (checked ? MF_CHECKED : 0) | (enabled ? 0 : MF_GRAYED), id, text);
@@ -95,6 +120,9 @@ static void add(HMENU m, UINT id, const char* text, int checked, int enabled) {
 
 static void run(int cmd) {
     if (cmd >= ID_CHEAT && cmd < ID_CHEAT + NCHEATS) toggle_cheat(cmd - ID_CHEAT);
+    else if (cmd == ID_LIVES) fprintf(stderr, "[menu] infinite lives %s\n", (g_set.lives = !g_set.lives) ? "on" : "off");
+    else if (cmd == ID_WIN) end_mission(1);
+    else if (cmd == ID_ABORT) end_mission(0);
     else if (cmd >= ID_WINDOW && cmd < ID_WINDOW + 2) {
         g_set.window = cmd - ID_WINDOW;
         display_place();
@@ -113,6 +141,10 @@ static void show(HWND h) {
         b[sizeof b - 1] = 0;
         add(ch, ID_CHEAT + i, b, g_set.cheats >> k_cheats[i].bit & 1, 1);
     }
+    add(ch, ID_LIVES, "Infinite lives", g_set.lives, 1);
+    AppendMenuA(ch, MF_SEPARATOR, 0, NULL);
+    add(ch, ID_WIN, "Complete this mission", 0, 1);
+    add(ch, ID_ABORT, "Abort this mission (no life lost with infinite lives)", 0, 1);
     AppendMenuA(ch, MF_SEPARATOR, 0, NULL);
     add(ch, 0, "Craft and ace mode take effect at the next mission", 0, 0);
     AppendMenuA(m, MF_POPUP, (UINT_PTR)ch, "Cheats");
@@ -178,6 +210,7 @@ static DWORD WINAPI script_thread(LPVOID unused) {
 int menu_arg(int argc, char** argv, int i) {
     static const struct { const char* name; int id; } names[] = {
         { "falcon", ID_CHEAT + 0 }, { "tie", ID_CHEAT + 1 }, { "bonus", ID_CHEAT + 2 }, { "ace", ID_CHEAT + 3 },
+        { "lives", ID_LIVES }, { "win", ID_WIN }, { "abort", ID_ABORT },
     };
     if (strcmp(argv[i], "--cmd") || i + 1 >= argc) return 0;
     char name[32];
@@ -187,7 +220,7 @@ int menu_arg(int argc, char** argv, int i) {
     memcpy(name, argv[i + 1], n), name[n] = 0;
     for (size_t k = 0; k < sizeof names / sizeof names[0]; k++)
         if (!strcmp(name, names[k].name)) id = names[k].id;
-    if (id < 0) { fprintf(stderr, "--cmd %s: unknown (falcon, tie, bonus, ace)\n", name); exit(1); }
+    if (id < 0) { fprintf(stderr, "--cmd %s: unknown (falcon, tie, bonus, ace, lives, win, abort)\n", name); exit(1); }
     g_script[g_nscript].id = id, g_script[g_nscript++].t = atof(at + 1);
     return 2;
 }

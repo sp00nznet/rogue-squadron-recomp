@@ -5,6 +5,11 @@ versions follow [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- F10 menu: infinite lives, complete this mission, abort this mission
+  (`--cmd lives`, `win`, `abort`), from the addresses in a speedrunner's
+  Cheat Engine table, checked against the lift. `docs/menu.md`.
+
 ## [0.1.0-alpha.1] - 2026-10-19
 
 ### Added
